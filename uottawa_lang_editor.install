@@ -1,0 +1,141 @@
+<?php
+/**
+ * @file
+ * Install file for the dual-language editor.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function uottawa_lang_editor_schema() {
+  return array(
+    "uottawa_lang_editor_revision_links" => array(
+      "description" => "Keeps track of pairs of revisions",
+      "fields" => array(
+        "pkid" => array(
+          "type" => "serial",
+          "size" => "normal",
+          "unsigned" => TRUE,
+          "not null" => TRUE
+        ),
+        "english_nid" => array(
+          "type" => "int",
+          "size" => "normal",
+          "unsigned" => TRUE,
+          "not null" => TRUE
+        ),
+        "french_nid" => array(
+          "type" => "int",
+          "size" => "normal",
+          "unsigned" => TRUE,
+          "not null" => TRUE
+        ),
+        "english_vid" => array(
+          "type" => "int",
+          "size" => "normal",
+          "unsigned" => TRUE,
+          "not null" => TRUE
+        ),
+        "french_vid" => array(
+          "type" => "int",
+          "size" => "normal",
+          "unsigned" => TRUE,
+          "not null" => TRUE
+        ),
+      ),
+      "primary key" => array("pkid"),
+      "unique keys" => array(
+        "english_cols" => array("english_vid", "english_nid"),
+        "french_cols" => array("french_vid", "french_nid")
+      )
+    ),
+    "uottawa_lang_editor_bundle_settings" => array(
+      "description" => "Information about which bundles should be translated",
+      "export" => array(
+        "key" => "uottawa_lang_editor_bundle_type",
+        "identifier" => "uottawa_lang_editor_bundles",
+        "default hook" => "default_uottawa_lang_editor_bundle",
+        "api" => array(
+          "owner" => "uottawa_lang_editor",
+          "api" => "default_uottawa_lang_editor_bundle_settings",
+          "minimum_version" => 1,
+          "current_version" => 1,
+        )
+      ),
+      "fields" => array(
+        "pkid" => array(
+          "type" => "serial",
+          "size" => "medium",
+          "unsigned" => TRUE,
+          "not null" => TRUE,
+          "description" => "Unique ID",
+          "no export" => TRUE
+        ),
+        "bundle_type" => array(
+          "type" => "varchar",
+          "length" => 127,
+          "not null" => TRUE,
+          "description" => "The bundle type for this setting"
+        ),
+        "language_option" => array(
+          "type" => "char",
+          "length" => "1",
+          "not null" => TRUE,
+          "default" => "D",
+          "description" => "D for dependent or I for independent"
+        )
+      ),
+      "primary key" => array("pkid"),
+      "unique keys" => array(
+        "bundle_field" => array("bundle_type")
+      )
+    ),
+    "uottawa_lang_editor_field_settings" => array(
+      "description" => "Information about how fields should be translated",
+      "export" => array(
+        "key" => "uottawa_lang_editor_field_type",
+        "identifier" => "uottawa_lang_editor_fields",
+        "default hook" => "default_uottawa_lang_editor_field",
+        "api" => array(
+          "owner" => "uottawa_lang_editor",
+          "api" => "default_uottawa_lang_editor_field_settings",
+          "minimum_version" => 1,
+          "current_version" => 1,
+        )
+      ),
+      "fields" => array(
+        "pkid" => array(
+          "type" => "serial",
+          "size" => "normal",
+          "unsigned" => TRUE,
+          "not null" => TRUE,
+          "description" => "Unique ID",
+          "no export" => TRUE,
+        ),
+        "bundle_type" => array(
+          "type" => "varchar",
+          "length" => 127,
+          "not null" => TRUE,
+          "description" => "The bundle type for this setting"
+        ),
+        "field_name" => array(
+          "type" => "varchar",
+          "length" => 128,
+          "not null" => TRUE,
+          "description" => "The field name for this setting"
+        ),
+        "language_option" => array(
+          "type" => "char",
+          "length" => 1,
+          "not null" => TRUE,
+          "default" => "D",
+          "description" => "D for dependent, I for independent, H for hidden, N for don't alter"
+        )
+      ),
+      "primary key" => array("pkid"),
+      "unique keys" => array(
+        "bundle_field" => array("bundle_type", "field_name")
+      )
+    )
+  );
+}

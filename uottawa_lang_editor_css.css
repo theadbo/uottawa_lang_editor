@@ -1,0 +1,74 @@
+.uottawa_lang_editor_english {
+  float: left;
+  width: 48%;
+  margin-right: 2%;
+}
+.uottawa_lang_editor_french {
+  float: right;
+  width: 48%;
+}
+.uottawa_lang_editor_spacer {
+  clear: both;
+}
+.uottawa_lang_editor_independent {
+  clear: both;
+  margin-top: 50px;
+  padding-top: 50px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #CCC;
+}
+.uottawa_lang_editor_block .vertical-tabs,
+.uottawa_lang_editor_block .form-item,
+.uottawa_lang_editor_block .form-wrapper {
+  clear: both;
+  margin-top: 30px;
+}
+
+.uottawa_lang_editor_block .vertical-tabs {
+  margin-top: 50px;
+}
+.uottawa_lang_editor_block .vertical-tabs .form-wrapper,
+.uottawa_lang_editor_block .vertical-tabs .form-item,
+.uottawa_lang_editor_block .form-wrapper .form-wrapper,
+.uottawa_lang_editor_block .form-wrapper .form-item {
+  margin-top: 0px;
+  clear: none;
+}
+.uottawa_lang_editor_collapse_preview,
+.uottawa_lang_editor_collapse {
+  display: none;
+}
+.uottawa_lang_editor_block h2 {
+  float: left;
+}
+.uottawa_lang_editor_independent h2 {
+  float: none;
+}
+.uottawa_lang_editor_actions {
+  float: right;
+  padding-right: 10px;
+}
+.uottawa_lang_editor_actions span {
+  color: #000099;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.uottawa_lang_editor_actions span:hover {
+  color: #009900;
+}
+form.node-form div.form {
+  background-image: none;
+}
+form.node-form div.column-side {
+  display: none;
+}
+form.node-form div.column-main {
+  width: 100%;
+}
+td.diff-prevlink a {
+  display: none;
+}
+td.diff-nextlink a {
+  display: none;
+}

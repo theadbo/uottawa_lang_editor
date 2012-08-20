@@ -1,0 +1,12 @@
+name = "Dual-Language Editor"
+description = "Allows side-by-side editing of content"
+package = "Content"
+core = 7.x
+
+dependencies[] = translation
+dependencies[] = locale
+dependencies[] = field
+
+files[] = uottawa_lang_editor.french_cleanup.inc
+
+version = "7.x-1.0-beta3"

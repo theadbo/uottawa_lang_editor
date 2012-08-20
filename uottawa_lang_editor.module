@@ -1,0 +1,454 @@
+<?php
+
+/**
+ * Implements hook_theme().
+ */
+function uottawa_lang_editor_theme() {
+  return array(
+    'tableselect_extended' => array(
+      'render element' => 'form',
+      'file' => 'uottawa_lang_editor.theme.inc',
+    ),
+    'uottawa_lang_editor_diff' => array(
+      'render element' => 'form',
+      'file' => 'uottawa_lang_editor.theme.inc',
+    ),
+    'side_by_side' => array(
+      'variables' => array(
+        'leftside' => '',
+        'rightside' => '',
+        'expand_text' => 'Expand',
+        'collapse_text' => 'Collapse'
+      ),
+      'file' => 'uottawa_lang_editor.theme.inc',
+    )
+  );
+}
+
+/**
+ * Checks to see if the user has access to all of the nodes in a list.
+ *
+ * @param array $nodes
+ *   List of nodes to check.
+ *
+ * @param array $op
+ *   Operation we'll be performing on those nodes.
+ *
+ * @param array $account
+ *   User account (Defaults to null).
+ *
+ * @return boolean
+ *   True if the user has access to all the nodes, otherwise returns false.
+ */
+function uottawa_lang_editor_revision_access($nodes, $op = "view", $account = NULL) {
+  foreach ($nodes as $node) {
+    // check each node
+    if (!_node_revision_access($node, $op, $account)) {
+      return FALSE;
+    }
+  }
+  return TRUE;
+}
+
+/**
+ * Implements wildcard_load().
+ *
+ * @param int $nid
+ *   Node ID to load.
+ *
+ * @param string $revs
+ *   Hyphen (-) separated list of revisions to load. May be from the English or
+ *   French version of $nid.
+ *
+ * @return array|false
+ *   Returns an array of node objects on success, otherwise false.
+ */
+function uottawa_lang_editor_node_array_load($nid, $revs, $diff = FALSE) {
+  $info = explode("-", $revs);
+  $nodes = array();
+  $baseNode = node_load($nid);
+  $alt_nid = 0;
+  // let's see if we can find a second node that matches the language here
+  if ($baseNode->tnid > 0) {
+    if ($baseNode->language == "fr") {
+      $alt_nid = $baseNode->tnid;
+    }
+    elseif ($baseNode->language == "en") {
+      $trans = translation_node_get_translations($baseNode->tnid);
+      if (isset($trans["fr"])) {
+        $alt_nid = $trans["fr"]->nid;
+      }
+    }
+  }
+  foreach ($info as $rev) {
+    // try loading the main language
+    $node = node_load($nid, $rev);
+    if (empty($node)) {
+      // try the alt language
+      $node = node_load($alt_nid, $rev);
+      if (empty($node)) {
+        // this version doesn't belong to this node (or has been deleted)
+        return FALSE;
+      }
+    }
+    if (!$diff) {
+      if ($node->language == "en" || $node->language == "fr") {
+        $nodes[$node->nid] = $node;
+      }
+    }
+    else {
+      $nodes[] = $node;
+    }
+  }
+  // Special logic for when loading the difs
+  if ($diff) {
+    $nc_eng = 0;
+    $nc_fra = 0;
+    foreach ($nodes as $node) {
+      if ($node->language == "en") {
+        $nc_eng++;
+      }
+      elseif ($node->language == "fr") {
+        $nc_fra++;
+      }
+    }
+    if ($nc_eng != 2 && $nc_fra != 2) {
+      return FALSE;
+    }
+    return $nodes;
+  }
+  // we don't want more than two languages (EN and FR)
+  if (count($nodes) > 2) {
+    return FALSE;
+  }
+  // we don't want no nodes either
+  if (count($nodes) < 1) {
+    return FALSE;
+  }
+  return $nodes;
+}
+
+/**
+ * Checks to see if we should offer a translation tab.
+ *
+ * We only want to have a translation tab IF the entity is not set up for
+ * dual-language editing.
+ *
+ * @param object $node
+ *   The node we're looking at.
+ *
+ * @return boolean
+ *   True if we should be able to see the translation, otherwise false.
+ */
+function uottawa_lang_editor_translate_check($node) {
+  module_load_include('inc', 'uottawa_lang_editor',
+      'uottawa_lang_editor.functions');
+  if (uottawa_lang_editor_is_dual_entry($node->type)) {
+    return FALSE;
+  }
+  return _translation_tab_access($node);
+}
+
+
+/**
+ * Access verification for a list of nodes.
+ *
+ * @param string $op
+ *   Operation we will be performing.
+ *
+ * @param string $nodes
+ *   Hypen delimited list of node IDs.
+ *
+ * @param object $account
+ *   The account to check against.
+ *
+ * @return boolean
+ *   True if we can perform $op on all the $nodes, otherwise false.
+ */
+function uottawa_lang_editor_multiple_node_access($op, $nodes, $account = NULL) {
+  $list = explode("-", $nodes);
+  foreach ($list as $nid) {
+    if (!node_access($op, node_load($nid), $account)) {
+      return FALSE;
+    }
+  }
+  return TRUE;
+}
+
+
+/**
+ * Checks to see if we have access to a node, based on if it is dual-language.
+ *
+ * @param string $type
+ *   The type of access.
+ *
+ * @param string $check
+ *   The mode of access. "dual" is for dual-language features, "regular" is for
+ *   non-dual-language features.
+ *
+ * @param object $node
+ *   The node to check access for.
+ *
+ * @return boolean
+ *   True if the user has access to this node in this mode, otherwise false.
+ */
+function uottawa_lang_editor_node_access($type, $check, $node) {
+  if (isset($node->type)) {
+    module_load_include('inc', 'uottawa_lang_editor',
+        'uottawa_lang_editor.functions');
+    if (uottawa_lang_editor_is_dual_entry($node->type)) {
+      if ($check !== "dual") {
+        return FALSE;
+      }
+    }
+    elseif ($check !== "regular") {
+      return FALSE;
+    }
+  }
+  return node_access($type, $node);
+}
+
+/**
+ * Implements hook_cron().
+ */
+function uottawa_lang_editor_cron() {
+  if (variable_get('uottawa_lang_editor_decay_auto') === 'Y') {
+    module_load_include('inc', 'uottawa_lang_editor',
+        'uottawa_lang_editor.admin');
+    uottawa_lang_editor_old_revisions_delete(
+        uottawa_lang_editor_get_old_revisions(TRUE));
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function uottawa_lang_editor_menu() {
+  return array(
+    'admin/config/content/dual-language' => array(
+      'title' => 'Dual-language editor',
+      'description' => 'Configure the dual-language editor',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('uottawa_lang_editor_admin_form'),
+      'access arguments' => array('access administration pages'),
+      'file' => 'uottawa_lang_editor.admin.inc',
+    ),
+    'admin/config/content/dual-language/configure' => array(
+      'title' => 'Configuration',
+      'description' => 'Configure the dual-language editor',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('uottawa_lang_editor_admin_form'),
+      'access arguments' => array('access administration pages'),
+      'type' => MENU_DEFAULT_LOCAL_TASK,
+      'file' => 'uottawa_lang_editor.admin.inc',
+    ),
+    'admin/config/content/dual-language/bundles' => array(
+      'title' => 'Content type settings',
+      'description' => 'Configure entity-level settings',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('uottawa_lang_editor_bundle_form'),
+      'access arguments' => array('access administration pages'),
+      'type' => MENU_LOCAL_TASK,
+      'file' => 'uottawa_lang_editor.admin.inc',
+    ),
+    'admin/config/content/dual-language/fields' => array(
+      'title' => 'Field settings',
+      'description' => 'Configure field-level settings',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('uottawa_lang_editor_field_form'),
+      'access arguments' => array('access administration pages'),
+      'type' => MENU_LOCAL_TASK,
+      'file' => 'uottawa_lang_editor.admin.inc',
+    ),
+    'admin/config/content/dual-language/old-revisions' => array(
+      'title' => 'Old revisions',
+      'description' => 'Remove older revisions',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('uottawa_lang_editor_old_revisions_form'),
+      'access arguments' => array('access administration pages'),
+      'type' => MENU_LOCAL_TASK,
+      'file' => 'uottawa_lang_editor.admin.inc',
+    ),
+    'node/delete-multiple/%' => array(
+      'title' => 'Delete multiple',
+      'description' => 'Deletes multiple nodes',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array(
+        'uottawa_lang_editor_dual_language_delete_confirmation_form', 2),
+      'access callback' => 'uottawa_lang_editor_multiple_node_access',
+      'access arguments' => array('delete', 2),
+      'file' => 'uottawa_lang_editor.content.inc',
+    ),
+    'node/%uottawa_lang_editor_node_array/revisions/%/diff' => array(
+      'title' => 'Revisions comparison',
+      'load arguments' => array(3, TRUE),
+      'page callback' => 'uottawa_lang_editor_view_diff',
+      'page arguments' => array(1),
+      'access callback' => 'uottawa_lang_editor_revision_access',
+      'access arguments' => array(1),
+      'file' => 'uottawa_lang_editor.pages.inc',
+    ),
+    'node/%uottawa_lang_editor_node_array/revisions/%/view-dual' => array(
+      'title' => 'Revisions',
+      'load arguments' => array(3),
+      'page callback' => 'uottawa_lang_editor_view_revision',
+      'page arguments' => array(1, TRUE),
+      'access callback' => 'uottawa_lang_editor_revision_access',
+      'access arguments' => array(1),
+      'file' => 'uottawa_lang_editor.revisions.inc'
+    ),
+    'node/%uottawa_lang_editor_node_array/revisions/%/revert-dual' => array(
+      'title' => 'Revisions - revert',
+      'load arguments' => array(3),
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('uottawa_lang_editor_revert_confirm', 1),
+      'access callback' => 'uottawa_lang_editor_revision_access',
+      'access arguments' => array(1, 'update'),
+      'file' => 'uottawa_lang_editor.revisions.inc'
+    ),
+    'node/%uottawa_lang_editor_node_array/revisions/%/delete-dual' => array(
+      'title' => 'Revisions - delete',
+      'load arguments' => array(3),
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('uottawa_lang_editor_delete_confirm', 1),
+      'access callback' => 'uottawa_lang_editor_revision_access',
+      'access arguments' => array(1, 'delete'),
+      'file' => 'uottawa_lang_editor.revisions.inc'
+    )
+  );
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function uottawa_lang_editor_form_alter(&$form, &$form_state, $form_id) {
+  if (drupal_strlen($form_id) > 10) {
+    // We only want forms that edit nodes
+    if (drupal_substr($form_id, -10) === '_node_form') {
+      // This is a flag set when we obtain the French version of the form to
+      // place side-by-side with the English version. That form should not
+      // be processed by our engine (as it will result in recursion).
+      if (isset($form_state['uottawa_lang_editor_norebuild'])) {
+        if ($form_state['uottawa_lang_editor_norebuild'] === 'yes') {
+          return;
+        }
+      }
+      // Make the form dual-language
+      module_load_include('inc', 'uottawa_lang_editor', 'uottawa_lang_editor');
+      uottawa_lang_editor_dual_language_form($form, $form_state,
+          drupal_substr($form_id, 0, -10));
+    }
+  }
+}
+
+/**
+ * Implements hook_features_api().
+ */
+function uottawa_lang_editor_features_api() {
+  return array(
+    'uottawa_lang_editor_bundle_config' => array(
+      'name' => t('DLE Bundle Settings'),
+      'file' => drupal_get_path('module', 'uottawa_lang_editor') .
+          '/uottawa_lang_editor.features.inc',
+      'default_hook' => 'config_features_bundle_default_settings',
+      'feature_source' => TRUE
+    )
+  );
+}
+
+/**
+ * Implements hook_enable().
+ */
+function uottawa_lang_editor_enable() {
+  // Set the weight of this module above the weight of any other module that
+  // might be updating the $form.
+  db_update('system')
+      ->fields(array('weight' => 20))
+      ->condition('name', 'uottawa_lang_editor')
+      ->execute();
+  $settings = array(
+    'uottawa_lang_editor_linked_revisions' => 'S',
+    'uottawa_lang_editor_revision_comments' => 'D',
+    'uottawa_lang_editor_comment_no_changes' =>
+        'No changes / Pas de changements',
+    'uottawa_lang_editor_comment_minor_changes' =>
+        'Minor changes / Des changements mineurs',
+    'uottawa_lang_editor_comment_creation' =>
+        'Content was created / Le contenu a été créé',
+    'uottawa_lang_editor_bundle_default' => 'D',
+    'uottawa_lang_editor_field_default' => 'D',
+    'uottawa_lang_editor_decay_minor' => 0,
+    'uottawa_lang_editor_decay_major' => 0,
+    'uottawa_lang_editor_decay_auto' => 'N',
+    'uottawa_lang_editor_decay_both' => 'L',
+  );
+  foreach ($settings as $key => $default) {
+    variable_set($key, variable_get($key, $default));
+  }
+}
+
+/**
+ * Implements hook_permission().
+ */
+function uottawa_lang_editor_permission() {
+  return array(
+    'uottawa_lang_editor_access' => array(
+      'title' => t('Dual-Language User'),
+      'description' => t('Allows the user to use the dual-language editor')
+    )
+  );
+}
+
+/**
+ * Implements hook_menu_alter().
+ */
+function uottawa_lang_editor_menu_alter(&$items) {
+  foreach (node_type_get_types() as $type) {
+    $items['node/add/' . str_replace('_', '-', $type->type)]['page callback'] =
+        'uottawa_lang_editor_node_add';
+    $items['node/add/' . str_replace('_', '-', $type->type)]['file'] =
+        'uottawa_lang_editor.inc';
+    $items['node/add/' . str_replace('_', '-', $type->type)]['file path'] =
+        drupal_get_path('module', 'uottawa_lang_editor');
+  }
+  $items['node/%node/edit']['page callback'] = 'uottawa_lang_editor_node_edit';
+  $items['node/%node/edit']['file'] = 'uottawa_lang_editor.inc';
+  $items['node/%node/edit']['file path'] =
+      drupal_get_path('module', 'uottawa_lang_editor');
+  $items['admin/content']['page arguments'] = array(
+      'uottawa_lang_editor_content_admin_form');
+  $items['admin/content']['file'] = 'uottawa_lang_editor.content.inc';
+  $items['admin/content']['file path'] =
+      drupal_get_path('module', 'uottawa_lang_editor');
+  // Look for the translation tab and alter it's access callback
+  $items['node/%node/translate']['access callback'] =
+      'uottawa_lang_editor_translate_check';
+  $items['node/%node/view']['access callback'] =
+      'uottawa_lang_editor_node_access';
+  $items['node/%node/view']['access arguments'] = array('view', 'regular', 1);
+  $items['node/%node/view-english'] = array(
+    'title' => 'English',
+    'access callback' => 'uottawa_lang_editor_node_access',
+    'access arguments' => array('edit', 'dual', 1),
+    'page callback' => 'uottawa_lang_editor_redirect_english',
+    'page arguments' => array(1),
+    'weight' => -15,
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'uottawa_lang_editor.pages.inc',
+  );
+  $items['node/%node/revisions']['page callback'] =
+      'uottawa_lang_editor_dual_revision_list';
+  $items['node/%node/revisions']['file'] = 'uottawa_lang_editor.revisions.inc';
+  $items['node/%node/revisions']['file path'] =
+      drupal_get_path('module', 'uottawa_lang_editor');
+  $items['node/%node/view-french'] = array(
+    'title' => 'French',
+    'access callback' => 'uottawa_lang_editor_node_access',
+    'access arguments' => array('edit', 'dual', 1),
+    'page callback' => 'uottawa_lang_editor_redirect_french',
+    'page arguments' => array(1),
+    'weight' => -15,
+    'type' => MENU_LOCAL_TASK,
+    'file' => 'uottawa_lang_editor.pages.inc',
+  );
+}
