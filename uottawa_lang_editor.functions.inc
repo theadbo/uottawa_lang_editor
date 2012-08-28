@@ -107,9 +107,10 @@ function uottawa_lang_editor_is_dual_entry($entity_type) {
     if ($rs->rowCount() > 0) {
       $row = $rs->fetchAssoc();
       $cached[$entity_type] = $row['language_option'] == 'D';
-    }
-    $cached[$entity_type] =
+    } else {
+      $cached[$entity_type] =
         variable_get('uottawa_lang_editor_bundle_default') !== 'I';
+    }
   }
   return $cached[$entity_type];
 }
