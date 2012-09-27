@@ -415,11 +415,14 @@ function uottawa_lang_editor_menu_alter(&$items) {
   $items['node/%node/edit']['file'] = 'uottawa_lang_editor.inc';
   $items['node/%node/edit']['file path'] =
       drupal_get_path('module', 'uottawa_lang_editor');
+  /*
   $items['admin/content']['page arguments'] = array(
       'uottawa_lang_editor_content_admin_form');
   $items['admin/content']['file'] = 'uottawa_lang_editor.content.inc';
   $items['admin/content']['file path'] =
       drupal_get_path('module', 'uottawa_lang_editor');
+   * 
+   */
   // Look for the translation tab and alter it's access callback
   $items['node/%node/translate']['access callback'] =
       'uottawa_lang_editor_translate_check';
