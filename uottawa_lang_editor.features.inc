@@ -58,7 +58,7 @@ function uottawa_lang_editor_bundle_config_features_export_render($module_name, 
     $code[] = '  $bundles[] = ' . features_var_export($package, '  ') . ';';
   }
   $code[] = '  return $bundles;';
-  return array('config_features_bundle_default_settings' => implode('\n', $code));
+  return array('config_features_bundle_default_settings' => implode("\n", $code));
 }
 
 /**
