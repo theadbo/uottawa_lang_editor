@@ -5,6 +5,8 @@
  * side-by-side editing experience.
  */
 
+require_once(DRUPAL_ROOT . "/modules/node/node.pages.inc");
+module_load_include('inc', 'uottawa_lang_editor', 'uottawa_lang_editor.functions');
 
 /**
  * Override function for node_form_delete() for the dual language editor.
